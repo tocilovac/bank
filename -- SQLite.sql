@@ -16,3 +16,6 @@ create table if not exists TRANSACTIONS (
 INSERT INTO Transactions (account_id, type, amount, balance_after, description)
 VALUES (1, 'deposit', 100.0, 100.0, 'Initial deposit');
 
+ALTER TABLE transactions ADD COLUMN timestamp TEXT;
+
+
