@@ -1,16 +1,13 @@
-# main.py
 import sqlite3
 import auth
 import service
 import deposit as deposit_mod
 import withdraw as withdraw_mod
 
-
 def open_db():
     conn = sqlite3.connect(auth.DB_NAME)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
-
 
 def prompt_nonempty(label: str) -> str:
     while True:
@@ -18,7 +15,6 @@ def prompt_nonempty(label: str) -> str:
         if val:
             return val
         print("Value cannot be empty.")
-
 
 def prompt_amount(label: str) -> float:
     while True:
@@ -32,13 +28,11 @@ def prompt_amount(label: str) -> float:
         except ValueError:
             print("Please enter a valid number.")
 
-
 def show_auth_menu():
     print("\n=== Welcome ===")
     print("1) Register")
     print("2) Login")
     print("0) Exit")
-
 
 def show_user_menu(username: str):
     print(f"\n=== Banking (logged in as {username}) ===")
@@ -49,7 +43,6 @@ def show_user_menu(username: str):
     print("9) Logout")
     print("0) Exit")
 
-
 def handle_check_balance():
     user_id = auth.get_logged_in_user()
     if not user_id:
@@ -57,7 +50,6 @@ def handle_check_balance():
         return
     bal = service.get_balance(user_id=user_id, db_path=auth.DB_NAME)
     print(f"Current balance: {bal:.2f}")
-
 
 def handle_deposit():
     user_id = auth.get_logged_in_user()
@@ -78,7 +70,6 @@ def handle_deposit():
     finally:
         conn.close()
 
-
 def handle_withdraw():
     user_id = auth.get_logged_in_user()
     if not user_id:
@@ -97,7 +88,6 @@ def handle_withdraw():
         print(msg)
     finally:
         conn.close()
-
 
 def handle_transfer():
     user_id = auth.get_logged_in_user()
@@ -175,9 +165,13 @@ def handle_transfer():
     finally:
         conn.close()
 
-
 def main():
     auth.init_db()
+
+    # Load saved session
+    saved_user = auth.load_session()
+    if saved_user:
+        auth.session.current_user_id = saved_user
 
     while True:
         if not auth.is_logged_in():
@@ -188,7 +182,6 @@ def main():
                 password = prompt_nonempty("New password: ")
                 ok, msg = auth.register_user(username, password)
                 print(msg)
-                # If ok, you're auto-logged in for this run
             elif choice == "2":
                 username = prompt_nonempty("Username: ")
                 password = prompt_nonempty("Password: ")
@@ -220,7 +213,6 @@ def main():
                 break
             else:
                 print("Invalid choice.")
-
 
 if __name__ == "__main__":
     main()
