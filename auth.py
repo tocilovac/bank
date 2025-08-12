@@ -1,51 +1,132 @@
+# auth.py
 import sqlite3
+from typing import Optional
 
-DB_name = 'bank.db'
-current_user_id = None
+DB_NAME = "bank.db"
 
-def register_user(username, password):
-    conn = sqlite3.connect(DB_name)
-    cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-    if cursor.fetchone():
-        conn.close()
-        return False, "Username already exists."
+class Session:
+    current_user_id: Optional[int] = None
 
-    cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
-    user_id = cursor.lastrowid  # Get the newly created user's ID
 
-    # Create account with initial balance
-    cursor.execute("INSERT INTO accounts (user_id, balance) VALUES (?, ?)", (user_id, 0.0))
+# One shared instance, imported everywhere
+session = Session()
+
+
+def get_connection():
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+def init_db():
+    conn = get_connection()
+    c = conn.cursor()
+
+    # Users
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+            username  TEXT UNIQUE NOT NULL,
+            password  TEXT NOT NULL
+        )
+    """)
+
+    # Accounts (card_number is optional; kept NULL unless you add issuance)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS accounts (
+            account_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id      INTEGER NOT NULL,
+            balance      REAL NOT NULL DEFAULT 0.0,
+            account_type TEXT NOT NULL,
+            card_number  TEXT UNIQUE,
+            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        )
+    """)
+
+    # Transactions
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS transactions (
+            txn_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            type       TEXT NOT NULL,
+            amount     REAL NOT NULL,
+            timestamp  TEXT NOT NULL,
+            FOREIGN KEY(account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
+        )
+    """)
 
     conn.commit()
     conn.close()
-    return True, "Registration successful."
 
-def login_user(username, password):
-    global current_user_id
-    conn = sqlite3.connect(DB_name)
-    cursor = conn.cursor()
 
-    cursor.execute("select user_id from users where username = ? and password = ?", (username, password))
-    result = cursor.fetchone()
+def register_user(username: str, password: str):
+    if not username or not password:
+        return False, "Username and password are required."
+
+    conn = get_connection()
+    c = conn.cursor()
+
+    # Reject duplicates
+    c.execute("SELECT 1 FROM users WHERE username = ?", (username,))
+    if c.fetchone():
+        conn.close()
+        return False, "Username already exists."
+
+    # Create user
+    c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+    user_id = c.lastrowid
+
+    # Create default checking account
+    c.execute(
+        "INSERT INTO accounts (user_id, balance, account_type) VALUES (?, ?, 'checking')",
+        (user_id, 0.0)
+    )
+
+    conn.commit()
     conn.close()
 
-    if result:
-        current_user_id = result[0]
-        return True, f"loggin in as {username}."
-    else:
-        return False, "incorrect username or password."
+    # Auto-login for this run
+    session.current_user_id = user_id
+    return True, f"Registration successful. Logged in as {username}."
+
+
+def login_user(username: str, password: str):
+    if not username or not password:
+        return False, "Username and password are required."
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT user_id FROM users WHERE username = ? AND password = ?",
+        (username, password)
+    )
+    row = c.fetchone()
+    conn.close()
+
+    if row:
+        session.current_user_id = row[0]
+        return True, "Logged in."
+    return False, "Incorrect username or password."
+
 
 def logout_user():
-    global current_user_id
-    current_user_id = None
-    return "youve been logged out."
+    session.current_user_id = None
+    return "Logged out."
 
-def is_logged_in():
-    return current_user_id is not None
+
+def is_logged_in() -> bool:
+    return session.current_user_id is not None
+
 
 def get_logged_in_user():
-    return current_user_id
+    return session.current_user_id
 
 
+def get_username(user_id: int) -> str | None:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT username FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else None

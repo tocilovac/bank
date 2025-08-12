@@ -1,26 +1,28 @@
+# deposit.py
 import sqlite3
 from datetime import datetime
+
 def deposit(conn, account_id, amount):
     if amount <= 0:
-        return "deposit must be positive."
-    
+        return "Deposit amount must be positive."
+
     cursor = conn.cursor()
-    
+
+    # Update balance
     cursor.execute("""
-        update accounts
-        set balance = balance + ?
-        where account_id = ?
+        UPDATE accounts
+        SET balance = balance + ?
+        WHERE account_id = ?
     """, (amount, account_id))
-    
+
+    if cursor.rowcount == 0:
+        return "Account not found."
+
+    # Log transaction
     cursor.execute("""
-        insert into transactions (account_id, type, amount, timestamp)
-        values (?, 'deposit', ?, ?)
-    """, (account_id, amount, datetime.now()))
-    
+        INSERT INTO transactions (account_id, type, amount, timestamp)
+        VALUES (?, 'deposit', ?, ?)
+    """, (account_id, amount, datetime.now().isoformat(timespec="seconds")))
+
     conn.commit()
-    return f"deposited {amount:.2f} successfully."
-
-
-
-
-
+    return f"Deposited {amount:.2f} successfully."

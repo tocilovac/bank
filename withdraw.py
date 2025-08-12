@@ -1,5 +1,7 @@
+# withdraw.py
 import sqlite3
 from datetime import datetime
+
 def withdraw(conn, account_id, amount):
     if amount <= 0:
         return "Withdrawal amount must be positive."
@@ -15,7 +17,7 @@ def withdraw(conn, account_id, amount):
     if not result:
         return "Account not found."
 
-    current_balance = result[0]
+    current_balance = float(result[0])
 
     if current_balance < amount:
         return "Insufficient funds."
@@ -27,11 +29,14 @@ def withdraw(conn, account_id, amount):
         WHERE account_id = ?
     """, (amount, account_id))
 
+    if cursor.rowcount == 0:
+        return "Account not found."
+
     # Log transaction
     cursor.execute("""
         INSERT INTO transactions (account_id, type, amount, timestamp)
         VALUES (?, 'withdrawal', ?, ?)
-    """, (account_id, amount, datetime.now()))
+    """, (account_id, amount, datetime.now().isoformat(timespec="seconds")))
 
     conn.commit()
     return f"Withdrew {amount:.2f} successfully."
